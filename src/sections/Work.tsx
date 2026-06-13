@@ -50,7 +50,7 @@ const projects: Project[] = [
 
 function Card({ project, index }: { project: Project; index: number }) {
   return (
-    <article className="group relative isolate flex aspect-[4/5] w-[clamp(280px,38vw,460px)] flex-none flex-col justify-between overflow-hidden rounded-[14px] p-[22px] text-paper">
+    <article className="group relative isolate flex aspect-[4/5] w-[clamp(300px,28vw,700px)] flex-none flex-col justify-between overflow-hidden rounded-[14px] p-[22px] text-paper">
       <div
         className="absolute inset-0 -z-[1] transition-transform duration-[600ms] ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:scale-[1.06]"
         style={{ background: project.bg }}
@@ -97,7 +97,9 @@ function WorkHorizontal() {
     target: ref,
     offset: ["start start", "end end"],
   });
-  const x = useTransform(scrollYProgress, [0, 1], [0, -distance]);
+  // Function-form transform stays on Motion's JS path (no native ScrollTimeline
+  // acceleration), and always reads the latest measured `distance`.
+  const x = useTransform(scrollYProgress, (p) => -distance * p);
 
   return (
     <section
