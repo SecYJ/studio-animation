@@ -1,5 +1,6 @@
 import { useRef } from "react";
 import { motion, useScroll, useTransform, type Variants } from "motion/react";
+import { Blob } from "../components/Blob";
 
 const container: Variants = {
   hidden: {},
@@ -43,17 +44,23 @@ export function Hero() {
   return (
     <section id="top" className="relative flex min-h-svh items-center overflow-hidden" ref={ref}>
       <div className="absolute inset-0 z-0">
-        <motion.div
-          className="absolute -top-[8vw] -right-[6vw] size-[46vw] rounded-full bg-[radial-gradient(circle_at_30%_30%,var(--color-terracotta),transparent_70%)] opacity-55 blur-[40px] will-change-transform"
-          style={{ y: blobA }}
+        <Blob
+          position="top-[-8vw] right-[-6vw] size-[46vw]"
+          gradient="bg-[radial-gradient(circle_at_30%_30%,var(--color-terracotta),transparent_70%)]"
+          restOpacity={0.55}
+          hoverOpacity={0.85}
+          parallaxY={blobA}
         />
-        <motion.div
-          className="absolute -bottom-[10vw] -left-[8vw] size-[38vw] rounded-full bg-[radial-gradient(circle_at_60%_40%,var(--color-green),transparent_70%)] opacity-40 blur-[40px] will-change-transform"
-          style={{ y: blobB }}
+        <Blob
+          position="bottom-[-10vw] left-[-8vw] size-[38vw]"
+          gradient="bg-[radial-gradient(circle_at_60%_40%,var(--color-green),transparent_70%)]"
+          restOpacity={0.4}
+          hoverOpacity={0.68}
+          parallaxY={blobB}
         />
       </div>
 
-      <motion.div className="wrap relative z-[2] w-full" style={{ scale, y, opacity }}>
+      <motion.div className="wrap relative z-2 w-full" style={{ scale, y, opacity }}>
         <motion.span
           className="eyebrow mb-[clamp(20px,4vh,40px)] text-terracotta-deep"
           initial={{ opacity: 0 }}

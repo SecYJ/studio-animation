@@ -14,3 +14,7 @@ Docs are local at `node_modules/vite-plus/docs` or online at https://viteplus.de
 - [ ] If setup, runtime, or package-manager behavior looks wrong, run `vp env doctor` and include its output when asking for help.
 
 <!--VITE PLUS END-->
+
+## Local servers
+
+- Shut down any dev/preview server you (the agent) start in the background (`vp dev`, `vp preview`, etc.) once the task that needed it is finished. Do not leave orphaned servers or ports running. Kill them by PID when done.
