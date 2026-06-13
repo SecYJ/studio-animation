@@ -3,7 +3,7 @@ import { motion, type Variants } from "motion/react";
 const lines = [
   <>We believe the best work</>,
   <>
-    feels less like a <em>website</em>
+    feels less like a <em className="text-terracotta">website</em>
   </>,
   <>and more like a place</>,
   <>you didn&apos;t want to leave.</>,
@@ -32,18 +32,18 @@ const lineVariant: Variants = {
 
 export function Manifesto() {
   return (
-    <section className="section manifesto">
+    <section className="relative overflow-hidden border-y border-line bg-cream-deep py-[clamp(96px,14vh,180px)]">
       <div className="wrap">
         <motion.h2
-          className="manifesto__lines"
+          className="max-w-[18ch] font-display text-statement"
           variants={lineContainer}
           initial="hidden"
           whileInView="show"
           viewport={{ once: true, margin: "-20% 0px" }}
         >
           {lines.map((line, i) => (
-            <span className="m-line" key={i}>
-              <motion.span className="m-line__inner" variants={lineVariant}>
+            <span className="block overflow-hidden" key={i}>
+              <motion.span className="block will-change-transform" variants={lineVariant}>
                 {line}
               </motion.span>
             </span>
@@ -51,7 +51,7 @@ export function Manifesto() {
         </motion.h2>
 
         <motion.p
-          className="manifesto__aside"
+          className="mt-[clamp(40px,7vh,80px)] max-w-[40ch] text-ink-soft"
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, margin: "-15% 0px" }}
@@ -62,14 +62,20 @@ export function Manifesto() {
         </motion.p>
       </div>
 
-      <div className="marquee" aria-hidden="true">
+      <div
+        className="mt-[clamp(56px,9vh,110px)] overflow-hidden border-y border-line py-[18px] whitespace-nowrap [mask-image:linear-gradient(90deg,transparent,#000_8%,#000_92%,transparent)] [-webkit-mask-image:linear-gradient(90deg,transparent,#000_8%,#000_92%,transparent)]"
+        aria-hidden="true"
+      >
         <motion.div
-          className="marquee__track"
+          className="inline-flex will-change-transform"
           animate={{ x: ["0%", "-50%"] }}
           transition={{ duration: 22, repeat: Infinity, ease: "linear" }}
         >
           {[...marqueeWords, ...marqueeWords].map((word, i) => (
-            <span className="marquee__item" key={i}>
+            <span
+              className="inline-flex items-center px-[0.5em] font-display text-marquee font-[380] text-ink italic after:ml-[0.7em] after:text-[0.62em] after:text-terracotta after:not-italic after:content-['✳']"
+              key={i}
+            >
               {word}
             </span>
           ))}

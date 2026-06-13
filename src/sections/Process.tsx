@@ -34,16 +34,20 @@ export function Process() {
   });
 
   return (
-    <section id="process" className="section process" ref={ref}>
-      <div className="wrap process__grid">
-        <div className="process__sticky">
-          <span className="eyebrow" style={{ color: "var(--terracotta)" }}>
-            How we work
-          </span>
-          <div className="process__num">{String(active + 1).padStart(2, "0")}</div>
+    <section
+      id="process"
+      className="relative bg-green py-[clamp(96px,14vh,180px)] text-paper"
+      ref={ref}
+    >
+      <div className="wrap grid grid-cols-[0.85fr_1.15fr] gap-[clamp(24px,5vw,80px)] max-[820px]:grid-cols-1">
+        <div className="sticky top-0 flex h-svh flex-col justify-center gap-[18px] max-[820px]:static max-[820px]:h-auto max-[820px]:pt-10">
+          <span className="eyebrow text-terracotta">How we work</span>
+          <div className="font-display text-mega text-transparent [-webkit-text-stroke:1.6px_rgb(244_237_225_/_0.55)]">
+            {String(active + 1).padStart(2, "0")}
+          </div>
           <motion.div
             key={active}
-            className="process__active"
+            className="font-display text-lead text-terracotta italic"
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5 }}
@@ -52,19 +56,21 @@ export function Process() {
           </motion.div>
         </div>
 
-        <div className="process__steps">
+        <div className="flex flex-col">
           {steps.map((step, i) => (
             <motion.div
-              className="step"
+              className="border-t border-[rgb(244_237_225_/_0.22)] py-[clamp(34px,9vh,78px)] last:border-b"
               key={step.title}
               initial={{ opacity: 0, y: 40 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, margin: "-30% 0px" }}
               transition={{ duration: 0.7 }}
             >
-              <span className="step__n">{String(i + 1).padStart(2, "0")}</span>
-              <h3>{step.title}</h3>
-              <p>{step.body}</p>
+              <span className="font-mono text-[0.78rem] tracking-[0.2em] text-terracotta">
+                {String(i + 1).padStart(2, "0")}
+              </span>
+              <h3 className="mt-[10px] mb-[14px] text-lead text-paper">{step.title}</h3>
+              <p className="max-w-[42ch] text-[rgb(244_237_225_/_0.82)]">{step.body}</p>
             </motion.div>
           ))}
         </div>

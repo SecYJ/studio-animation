@@ -50,12 +50,17 @@ const projects: Project[] = [
 
 function Card({ project, index }: { project: Project; index: number }) {
   return (
-    <article className="card">
-      <div className="card__bg" style={{ background: project.bg }} />
-      <span className="card__index">{String(index + 1).padStart(2, "0")} / 06</span>
-      <div className="card__foot">
-        <h3>{project.title}</h3>
-        <div className="card__meta">
+    <article className="group relative isolate flex aspect-[4/5] w-[clamp(280px,38vw,460px)] flex-none flex-col justify-between overflow-hidden rounded-[14px] p-[22px] text-paper">
+      <div
+        className="absolute inset-0 -z-[1] transition-transform duration-[600ms] ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:scale-[1.06]"
+        style={{ background: project.bg }}
+      />
+      <span className="font-mono text-[0.78rem] tracking-[0.2em] opacity-85">
+        {String(index + 1).padStart(2, "0")} / 06
+      </span>
+      <div>
+        <h3 className="text-card text-paper">{project.title}</h3>
+        <div className="mt-1.5 flex justify-between font-mono text-[0.74rem] tracking-[0.12em] uppercase opacity-[0.82]">
           <span>{project.category}</span>
           <span>{project.year}</span>
         </div>
@@ -97,23 +102,31 @@ function WorkHorizontal() {
   return (
     <section
       id="work"
-      className="work"
+      className="relative bg-ink text-paper"
       ref={ref}
       style={{ height: `calc(100svh + ${distance}px)` }}
     >
-      <div className="work__pin">
-        <div className="work__head">
-          <h2>
-            Selected <em style={{ fontStyle: "italic", color: "var(--terracotta)" }}>work</em>
+      <div className="sticky top-0 flex h-svh flex-col justify-center overflow-hidden">
+        <div className="flex items-baseline justify-between gap-5 px-[clamp(20px,5vw,64px)] pb-[clamp(24px,5vh,48px)]">
+          <h2 className="text-headline text-paper">
+            Selected <em className="text-terracotta italic">work</em>
           </h2>
-          <span className="work__count">06 projects</span>
+          <span className="font-mono text-[0.8rem] tracking-[0.2em] text-terracotta">
+            06 projects
+          </span>
         </div>
-        <motion.div className="work__track" ref={trackRef} style={{ x }}>
+        <motion.div
+          className="flex gap-[clamp(20px,3vw,40px)] px-[clamp(20px,5vw,64px)] will-change-transform"
+          ref={trackRef}
+          style={{ x }}
+        >
           {projects.map((project, i) => (
             <Card key={project.title} project={project} index={i} />
           ))}
         </motion.div>
-        <p className="work__hint">↓ keep scrolling — the gallery moves sideways</p>
+        <p className="px-[clamp(20px,5vw,64px)] pt-[clamp(20px,4vh,36px)] font-mono text-[0.72rem] tracking-[0.2em] text-muted uppercase">
+          ↓ keep scrolling — the gallery moves sideways
+        </p>
       </div>
     </section>
   );
@@ -121,12 +134,10 @@ function WorkHorizontal() {
 
 function WorkStacked() {
   return (
-    <section id="work" className="work-grid">
+    <section id="work" className="bg-ink py-[clamp(80px,12vh,130px)] text-paper">
       <div className="wrap">
-        <span className="eyebrow" style={{ color: "var(--terracotta)" }}>
-          Selected work — 06 projects
-        </span>
-        <div className="work-grid__list">
+        <span className="eyebrow text-terracotta">Selected work — 06 projects</span>
+        <div className="mt-[clamp(32px,6vh,56px)] grid grid-cols-[repeat(auto-fill,minmax(260px,1fr))] gap-[clamp(18px,3vw,32px)]">
           {projects.map((project, i) => (
             <Card key={project.title} project={project} index={i} />
           ))}
