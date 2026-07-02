@@ -1,5 +1,15 @@
 import { useEffect, useRef, useState } from "react";
-import { motion, useReducedMotion, useScroll, useTransform } from "motion/react";
+import {
+  AnimatePresence,
+  motion,
+  useMotionValueEvent,
+  useReducedMotion,
+  useScroll,
+  useSpring,
+  useTransform,
+  useVelocity,
+  type MotionValue,
+} from "motion/react";
 import { useMediaQuery } from "../lib/useMediaQuery";
 
 type Project = {
@@ -69,10 +79,94 @@ function Card({ project, index }: { project: Project; index: number }) {
   );
 }
 
+/** Card in the pinned gallery. Tracks its own distance from the viewport
+ *  centre and turns it into a cylindrical carousel: cards swing in with
+ *  perspective, settle flat and full-size at centre, and swing out again,
+ *  while their gradient slides in counter-parallax behind the content. */
+function GalleryCard({
+  project,
+  index,
+  x,
+}: {
+  project: Project;
+  index: number;
+  x: MotionValue<number>;
+}) {
+  const ref = useRef<HTMLElement>(null);
+  // untranslated centre of the card in page coords, measured once per layout
+  const [center, setCenter] = useState<number | null>(null);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const measure = () => {
+      const rect = el.getBoundingClientRect();
+      setCenter(rect.left + rect.width / 2 - x.get());
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    window.addEventListener("resize", measure);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", measure);
+    };
+  }, [x]);
+
+  // -0.5 = one half-viewport left of centre, 0 = dead centre, +0.5 = right
+  const pos = useTransform(x, (v) =>
+    center === null ? 0 : (center + v - window.innerWidth / 2) / window.innerWidth,
+  );
+
+  const rotateY = useTransform(pos, [-1, 0, 1], [16, 0, -16]);
+  const rotateZ = useTransform(pos, [-1, 0, 1], [-2.5, 0, 2.5]);
+  const arcY = useTransform(pos, (p) => Math.min(Math.abs(p) * 160, 72));
+  const scale = useTransform(pos, (p) => 1 - Math.min(Math.abs(p) * 0.24, 0.13));
+  const innerX = useTransform(pos, [-1, 1], ["-11%", "11%"]);
+
+  return (
+    <motion.div
+      className="flex-none"
+      initial={{ opacity: 0, y: 90 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true }}
+      transition={{ duration: 0.9, ease: [0.22, 1, 0.36, 1] }}
+    >
+      <motion.article
+        className="group relative isolate flex aspect-4/5 w-[clamp(300px,28vw,700px)] flex-col justify-between overflow-hidden rounded-[14px] p-5.5 text-paper will-change-transform"
+        ref={ref}
+        style={{ rotateY, rotateZ, y: arcY, scale, transformPerspective: 1100 }}
+      >
+        {/* oversized gradient sliding against the travel direction for depth */}
+        <motion.div
+          className="absolute inset-y-0 left-[-15%] z-[-1] w-[130%]"
+          style={{ x: innerX }}
+        >
+          <div
+            className="size-full transition-transform duration-600 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:scale-[1.06]"
+            style={{ background: project.bg }}
+          />
+        </motion.div>
+        <span className="font-mono text-[0.78rem] tracking-[0.2em] opacity-85">
+          {String(index + 1).padStart(2, "0")} / 06
+        </span>
+        <div>
+          <h3 className="text-card text-paper">{project.title}</h3>
+          <div className="mt-1.5 flex justify-between font-mono text-[0.74rem] tracking-[0.12em] uppercase opacity-[0.82]">
+            <span>{project.category}</span>
+            <span>{project.year}</span>
+          </div>
+        </div>
+      </motion.article>
+    </motion.div>
+  );
+}
+
 function WorkHorizontal() {
   const ref = useRef<HTMLElement>(null);
   const trackRef = useRef<HTMLDivElement>(null);
   const [distance, setDistance] = useState(0);
+  const [active, setActive] = useState(0);
 
   useEffect(() => {
     const track = trackRef.current;
@@ -101,6 +195,22 @@ function WorkHorizontal() {
   // acceleration), and always reads the latest measured `distance`.
   const x = useTransform(scrollYProgress, (p) => -distance * p);
 
+  // whole track shears with scroll velocity, springing back flat at rest
+  const xVelocity = useVelocity(x);
+  const skewX = useSpring(useTransform(xVelocity, [-2200, 2200], [7, -7]), {
+    stiffness: 280,
+    damping: 40,
+  });
+
+  const headerX = useTransform(x, (v) => v * 0.05);
+  const railScale = useSpring(scrollYProgress, { stiffness: 140, damping: 26 });
+
+  const activeFloat = useTransform(scrollYProgress, [0, 1], [0, projects.length - 1]);
+  useMotionValueEvent(activeFloat, "change", (v) => {
+    const idx = Math.min(projects.length - 1, Math.max(0, Math.round(v)));
+    setActive((prev) => (prev === idx ? prev : idx));
+  });
+
   return (
     <section
       id="work"
@@ -109,26 +219,106 @@ function WorkHorizontal() {
       style={{ height: `calc(100svh + ${distance}px)` }}
     >
       <div className="sticky top-0 flex h-svh flex-col justify-center overflow-hidden">
-        <div className="flex items-baseline justify-between gap-5 px-[clamp(20px,5vw,64px)] pb-[clamp(24px,5vh,48px)]">
-          <h2 className="text-headline text-paper">
-            Selected <em className="text-terracotta italic">work</em>
+        {/* giant rolling index behind the cards */}
+        <div
+          className="pointer-events-none absolute top-1/2 right-[2vw] -translate-y-1/2 select-none"
+          aria-hidden="true"
+        >
+          <AnimatePresence mode="popLayout" initial={false}>
+            <motion.span
+              className="block font-display text-mega leading-[0.8] text-paper/6"
+              key={active}
+              initial={{ y: "40%", opacity: 0 }}
+              animate={{ y: "0%", opacity: 1 }}
+              exit={{ y: "-40%", opacity: 0 }}
+              transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1] }}
+            >
+              {String(active + 1).padStart(2, "0")}
+            </motion.span>
+          </AnimatePresence>
+        </div>
+
+        <motion.div
+          className="flex items-baseline justify-between gap-5 px-[clamp(20px,5vw,64px)] pb-[clamp(24px,5vh,48px)]"
+          style={{ x: headerX }}
+        >
+          <h2 className="overflow-hidden text-headline text-paper">
+            <motion.span
+              className="block will-change-transform"
+              initial={{ y: "110%" }}
+              whileInView={{ y: "0%" }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.85, ease: [0.22, 1, 0.36, 1] }}
+            >
+              Selected <em className="text-terracotta italic">work</em>
+            </motion.span>
           </h2>
           <span className="font-mono text-[0.8rem] tracking-[0.2em] text-terracotta">
             06 projects
           </span>
-        </div>
+        </motion.div>
+
         <motion.div
-          className="flex gap-[clamp(20px,3vw,40px)] px-[clamp(20px,5vw,64px)] will-change-transform"
+          className="relative z-1 flex items-start gap-[clamp(20px,3vw,40px)] px-[clamp(20px,5vw,64px)] will-change-transform"
           ref={trackRef}
-          style={{ x }}
+          style={{ x, skewX }}
         >
           {projects.map((project, i) => (
-            <Card key={project.title} project={project} index={i} />
+            <GalleryCard key={project.title} project={project} index={i} x={x} />
           ))}
+          <a
+            className="relative flex aspect-4/5 w-[clamp(260px,22vw,520px)] flex-none flex-col justify-between rounded-[14px] border border-dashed border-paper/30 p-5.5 text-paper transition-colors duration-400 hover:border-terracotta"
+            href="#contact"
+          >
+            <span className="font-mono text-[0.78rem] tracking-[0.2em] opacity-60">07 / ∞</span>
+            <div>
+              <h3 className="text-card">
+                Your project
+                <br />
+                could be next
+              </h3>
+              <span className="mt-3 inline-block font-mono text-[0.74rem] tracking-[0.12em] text-terracotta uppercase">
+                Start a conversation ↗
+              </span>
+            </div>
+          </a>
         </motion.div>
-        <p className="px-[clamp(20px,5vw,64px)] pt-[clamp(20px,4vh,36px)] font-mono text-[0.72rem] tracking-[0.2em] text-muted uppercase">
-          ↓ keep scrolling — the gallery moves sideways
-        </p>
+
+        {/* progress rail: index ticks, springy bar, rolling active title */}
+        <div className="flex items-center gap-[clamp(16px,3vw,40px)] px-[clamp(20px,5vw,64px)] pt-[clamp(20px,4vh,36px)]">
+          <div className="flex shrink-0 gap-[0.9em] font-mono text-[0.7rem] tracking-[0.18em]">
+            {projects.map((project, i) => (
+              <span
+                className={`transition-colors duration-300 ${
+                  i === active ? "text-terracotta" : "text-paper/30"
+                }`}
+                key={project.title}
+              >
+                {String(i + 1).padStart(2, "0")}
+              </span>
+            ))}
+          </div>
+          <div className="relative h-0.5 flex-1 overflow-hidden rounded-full bg-paper/15">
+            <motion.div
+              className="absolute inset-0 origin-left bg-terracotta"
+              style={{ scaleX: railScale }}
+            />
+          </div>
+          <div className="min-w-[20ch] shrink-0 overflow-hidden text-right">
+            <AnimatePresence mode="popLayout" initial={false}>
+              <motion.span
+                className="block font-mono text-[0.7rem] tracking-[0.18em] text-paper/70 uppercase"
+                key={active}
+                initial={{ y: "120%" }}
+                animate={{ y: "0%" }}
+                exit={{ y: "-120%" }}
+                transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
+              >
+                {projects[active].title} — {projects[active].category}
+              </motion.span>
+            </AnimatePresence>
+          </div>
+        </div>
       </div>
     </section>
   );
