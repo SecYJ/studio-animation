@@ -69,10 +69,9 @@
 }
 
 @layer base {
-  html {
-    scroll-behavior: smooth;
-  }
-
+  /* NOTE: no `scroll-behavior: smooth` here — it fights Lenis (every scroll
+     write would get re-animated by the browser). Lenis handles smoothing
+     and anchor scrolling; reduced-motion users get instant jumps. */
   body {
     background: var(--color-cream);
     color: var(--color-ink);
@@ -96,12 +95,6 @@
   ::selection {
     background: var(--color-terracotta);
     color: var(--color-paper);
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    html {
-      scroll-behavior: auto;
-    }
   }
 }
 
