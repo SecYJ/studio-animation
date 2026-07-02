@@ -92,18 +92,42 @@ function Word({
     >
       {token.text}
       {token.accent === "strike" && (
-        <motion.span
+        <svg
           aria-hidden="true"
-          className="absolute top-[56%] left-[-0.05em] h-[0.045em] w-[calc(100%+0.1em)] origin-left rounded-full bg-terracotta-deep"
-          style={{ scaleX: reduce ? 1 : decoScale }}
-        />
+          className="pointer-events-none absolute top-[10%] left-[-5%] h-[80%] w-[110%]"
+          viewBox="0 0 100 40"
+          preserveAspectRatio="none"
+        >
+          {/* rough editor's strike — one impatient pass of the pen */}
+          <motion.path
+            d="M2 24 C 16 19, 33 26, 50 21 S 80 25, 98 17"
+            fill="none"
+            stroke="var(--color-terracotta-deep)"
+            strokeWidth={2.4}
+            strokeLinecap="round"
+            vectorEffect="non-scaling-stroke"
+            style={{ pathLength: reduce ? 1 : decoScale }}
+          />
+        </svg>
       )}
       {token.accent === "underline" && (
-        <motion.span
+        <svg
           aria-hidden="true"
-          className="absolute bottom-[-0.04em] left-0 h-[0.05em] w-full origin-left rounded-full bg-green"
-          style={{ scaleX: reduce ? 1 : decoScale }}
-        />
+          className="pointer-events-none absolute bottom-[-0.32em] left-[-3%] h-[0.5em] w-[106%]"
+          viewBox="0 0 100 20"
+          preserveAspectRatio="none"
+        >
+          {/* wavy double-check underline, like circling the word that matters */}
+          <motion.path
+            d="M2 8 C 18 14, 40 4, 58 10 S 88 13, 98 6 M6 14 C 30 18, 60 11, 94 13"
+            fill="none"
+            stroke="var(--color-green)"
+            strokeWidth={2.2}
+            strokeLinecap="round"
+            vectorEffect="non-scaling-stroke"
+            style={{ pathLength: reduce ? 1 : decoScale }}
+          />
+        </svg>
       )}
     </motion.span>
   );

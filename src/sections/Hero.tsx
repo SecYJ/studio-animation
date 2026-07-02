@@ -9,16 +9,12 @@ import {
   useTransform,
 } from "motion/react";
 import { Blob } from "../components/Blob";
+import { Motes } from "../components/Motes";
+import { jitter } from "../lib/jitter";
 
 const EASE = [0.22, 1, 0.36, 1] as const;
 const CHAR_DELAY = 0.25; // s before the first letter lands
 const CHAR_STAGGER = 0.05; // s between letters
-
-/** deterministic pseudo-random 0..1 per index — drives the scroll-out scatter */
-function jitter(i: number) {
-  const x = Math.sin(i * 127.1 + 311.7) * 43758.5453;
-  return x - Math.floor(x);
-}
 
 type SharedMotion = {
   scrollProgress: MotionValue<number>;
@@ -71,14 +67,16 @@ function HeroChar({
   );
   const lift = useTransform(glow, (p) => p * -9);
 
+  /* on scroll-out each letter drifts on its own arc, like paper scraps in a draught */
   const j = jitter(index);
   const scatterY = useTransform(scrollProgress, [0, 1], [0, 70 + j * 190]);
-  const scatterRotate = useTransform(scrollProgress, [0, 1], [0, (j - 0.5) * 32]);
+  const scatterX = useTransform(scrollProgress, [0, 1], [0, (j - 0.5) * 240]);
+  const scatterRotate = useTransform(scrollProgress, [0, 1], [0, (j - 0.5) * 46]);
 
   return (
     <motion.span
       className="inline-block will-change-transform"
-      style={reduce ? undefined : { y: scatterY, rotate: scatterRotate }}
+      style={reduce ? undefined : { y: scatterY, x: scatterX, rotate: scatterRotate }}
     >
       <motion.span
         className="inline-block"
@@ -95,6 +93,21 @@ function HeroChar({
         </motion.span>
       </motion.span>
     </motion.span>
+  );
+}
+
+/** Tall shafts of afternoon light panning slowly across the studio wall. */
+function WindowLight() {
+  return (
+    <div className="pointer-events-none absolute inset-0 z-1 overflow-hidden" aria-hidden="true">
+      <div
+        className="animate-beam absolute inset-y-[-10%] left-[-20%] w-[150%] will-change-transform"
+        style={{
+          background:
+            "linear-gradient(112deg, transparent 30%, rgb(255 232 190 / 0.34) 38%, rgb(255 232 190 / 0.1) 45%, transparent 52%, transparent 61%, rgb(255 232 190 / 0.22) 67%, transparent 74%)",
+        }}
+      />
+    </div>
   );
 }
 
@@ -219,6 +232,13 @@ export function Hero() {
           parallaxY={blobB}
         />
       </div>
+
+      {!reduce && (
+        <>
+          <WindowLight />
+          <Motes variant="dust" count={14} />
+        </>
+      )}
 
       <OrbitBadge fade={inkFade} />
 

@@ -1,5 +1,7 @@
 import { useRef, useState } from "react";
-import { motion, useMotionValueEvent, useScroll } from "motion/react";
+import { AnimatePresence, motion, useMotionValueEvent, useScroll } from "motion/react";
+
+const EASE = [0.22, 1, 0.36, 1] as const;
 
 const steps = [
   {
@@ -42,8 +44,43 @@ export function Process() {
       <div className="wrap grid grid-cols-[0.85fr_1.15fr] gap-[clamp(24px,5vw,80px)] max-[820px]:grid-cols-1">
         <div className="sticky top-0 flex h-svh flex-col justify-center gap-[18px] max-[820px]:static max-[820px]:h-auto max-[820px]:pt-10">
           <span className="eyebrow text-terracotta">How we work</span>
-          <div className="font-display text-mega text-transparent [-webkit-text-stroke:1.6px_rgb(244_237_225_/_0.55)]">
-            {String(active + 1).padStart(2, "0")}
+          {/* pencil-sketch counter: the old number is "erased" (blurs away),
+              the new one lands and gets a hand-drawn circle around it */}
+          <div className="relative inline-block self-start">
+            <AnimatePresence mode="popLayout" initial={false}>
+              <motion.div
+                key={active}
+                className="font-display text-mega text-transparent [-webkit-text-stroke:1.6px_rgb(244_237_225_/_0.55)]"
+                initial={{ opacity: 0, y: 28, filter: "blur(10px)" }}
+                animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+                exit={{ opacity: 0, y: -20, filter: "blur(14px)" }}
+                transition={{ duration: 0.5, ease: EASE }}
+              >
+                {String(active + 1).padStart(2, "0")}
+              </motion.div>
+            </AnimatePresence>
+            <svg
+              aria-hidden="true"
+              className="pointer-events-none absolute top-[-7%] left-[-10%] h-[114%] w-[124%] -rotate-3"
+              viewBox="0 0 100 60"
+              preserveAspectRatio="none"
+            >
+              <motion.ellipse
+                key={active}
+                cx="50"
+                cy="30"
+                rx="46"
+                ry="25"
+                fill="none"
+                stroke="var(--color-terracotta)"
+                strokeWidth={2}
+                strokeLinecap="round"
+                vectorEffect="non-scaling-stroke"
+                initial={{ pathLength: 0, opacity: 0 }}
+                animate={{ pathLength: 1, opacity: 0.85 }}
+                transition={{ delay: 0.28, duration: 0.7, ease: EASE }}
+              />
+            </svg>
           </div>
           <motion.div
             key={active}

@@ -65,12 +65,14 @@ export function Stats() {
         <div className="mt-[clamp(40px,7vh,72px)] grid grid-cols-4 gap-[clamp(20px,3vw,48px)] max-[720px]:grid-cols-2">
           {stats.map((stat, i) => (
             <motion.div
-              className="border-t border-line pt-[18px]"
+              className="border-t border-line pt-[18px] will-change-transform"
               key={stat.label}
-              initial={{ opacity: 0, y: 30 }}
-              whileInView={{ opacity: 1, y: 0 }}
+              /* each figure stamps down like a rubber stamp on paper, settling
+                 a touch crooked — the springy overshoot sells the thump */
+              initial={{ opacity: 0, scale: 1.7, rotate: (i % 2 ? 1 : -1) * 5 }}
+              whileInView={{ opacity: 1, scale: 1, rotate: (i % 2 ? -1 : 1) * 1.1 }}
               viewport={{ once: true, margin: "-12% 0px" }}
-              transition={{ duration: 0.6, delay: i * 0.08 }}
+              transition={{ type: "spring", stiffness: 340, damping: 19, delay: 0.15 + i * 0.11 }}
             >
               <div className="flex items-baseline font-display text-stat">
                 <CountUp to={stat.value} />

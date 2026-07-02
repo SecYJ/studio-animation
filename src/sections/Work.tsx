@@ -11,6 +11,18 @@ import {
   type MotionValue,
 } from "motion/react";
 import { useMediaQuery } from "../lib/useMediaQuery";
+import { jitter } from "../lib/jitter";
+
+/** strip of masking tape pinning a print to the studio wall */
+function Tape({ angle }: { angle: number }) {
+  return (
+    <span
+      aria-hidden="true"
+      className="absolute -top-3 left-1/2 z-2 h-7 w-24 border-x border-dashed border-paper/25 bg-paper/20 shadow-[0_2px_6px_rgb(0_0_0/0.25)] backdrop-blur-[1px]"
+      style={{ transform: `translateX(-50%) rotate(${angle}deg)` }}
+    />
+  );
+}
 
 type Project = {
   title: string;
@@ -59,23 +71,27 @@ const projects: Project[] = [
 ];
 
 function Card({ project, index }: { project: Project; index: number }) {
+  const tilt = (jitter(index * 3 + 1) - 0.5) * 4;
   return (
-    <article className="group relative isolate flex aspect-4/5 w-[clamp(300px,28vw,700px)] flex-none flex-col justify-between overflow-hidden rounded-[14px] p-5.5 text-paper">
-      <div
-        className="absolute inset-0 z-[-1] transition-transform duration-600 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:scale-[1.06]"
-        style={{ background: project.bg }}
-      />
-      <span className="font-mono text-[0.78rem] tracking-[0.2em] opacity-85">
-        {String(index + 1).padStart(2, "0")} / 06
-      </span>
-      <div>
-        <h3 className="text-card text-paper">{project.title}</h3>
-        <div className="mt-1.5 flex justify-between font-mono text-[0.74rem] tracking-[0.12em] uppercase opacity-[0.82]">
-          <span>{project.category}</span>
-          <span>{project.year}</span>
+    <div className="relative" style={{ transform: `rotate(${tilt}deg)` }}>
+      <Tape angle={tilt * 1.6 - 3} />
+      <article className="group relative isolate flex aspect-4/5 flex-col justify-between overflow-hidden rounded-[14px] p-5.5 text-paper shadow-[0_18px_44px_rgb(0_0_0/0.4)]">
+        <div
+          className="absolute inset-0 z-[-1] transition-transform duration-600 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:scale-[1.06]"
+          style={{ background: project.bg }}
+        />
+        <span className="font-mono text-[0.78rem] tracking-[0.2em] opacity-85">
+          {String(index + 1).padStart(2, "0")} / 06
+        </span>
+        <div>
+          <h3 className="text-card text-paper">{project.title}</h3>
+          <div className="mt-1.5 flex justify-between font-mono text-[0.74rem] tracking-[0.12em] uppercase opacity-[0.82]">
+            <span>{project.category}</span>
+            <span>{project.year}</span>
+          </div>
         </div>
-      </div>
-    </article>
+      </article>
+    </div>
   );
 }
 
@@ -92,7 +108,9 @@ function GalleryCard({
   index: number;
   x: MotionValue<number>;
 }) {
-  const ref = useRef<HTMLElement>(null);
+  const ref = useRef<HTMLDivElement>(null);
+  /* every print hangs a little crooked, each in its own way */
+  const tilt = (jitter(index * 3 + 1) - 0.5) * 5;
   // untranslated centre of the card in page coords, measured once per layout
   const [center, setCenter] = useState<number | null>(null);
 
@@ -119,7 +137,7 @@ function GalleryCard({
   );
 
   const rotateY = useTransform(pos, [-1, 0, 1], [16, 0, -16]);
-  const rotateZ = useTransform(pos, [-1, 0, 1], [-2.5, 0, 2.5]);
+  const rotateZ = useTransform(pos, [-1, 0, 1], [tilt - 2.5, tilt, tilt + 2.5]);
   const arcY = useTransform(pos, (p) => Math.min(Math.abs(p) * 160, 72));
   const scale = useTransform(pos, (p) => 1 - Math.min(Math.abs(p) * 0.24, 0.13));
   const innerX = useTransform(pos, [-1, 1], ["-11%", "11%"]);
@@ -132,32 +150,35 @@ function GalleryCard({
       viewport={{ once: true }}
       transition={{ duration: 0.9, ease: [0.22, 1, 0.36, 1] }}
     >
-      <motion.article
-        className="group relative isolate flex aspect-4/5 w-[clamp(300px,28vw,700px)] flex-col justify-between overflow-hidden rounded-[14px] p-5.5 text-paper will-change-transform"
+      <motion.div
+        className="relative w-[clamp(300px,28vw,700px)] will-change-transform"
         ref={ref}
         style={{ rotateY, rotateZ, y: arcY, scale, transformPerspective: 1100 }}
       >
-        {/* oversized gradient sliding against the travel direction for depth */}
-        <motion.div
-          className="absolute inset-y-0 left-[-15%] z-[-1] w-[130%]"
-          style={{ x: innerX }}
-        >
-          <div
-            className="size-full transition-transform duration-600 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:scale-[1.06]"
-            style={{ background: project.bg }}
-          />
-        </motion.div>
-        <span className="font-mono text-[0.78rem] tracking-[0.2em] opacity-85">
-          {String(index + 1).padStart(2, "0")} / 06
-        </span>
-        <div>
-          <h3 className="text-card text-paper">{project.title}</h3>
-          <div className="mt-1.5 flex justify-between font-mono text-[0.74rem] tracking-[0.12em] uppercase opacity-[0.82]">
-            <span>{project.category}</span>
-            <span>{project.year}</span>
+        <Tape angle={tilt * 1.6 - 3} />
+        <article className="group relative isolate flex aspect-4/5 w-full flex-col justify-between overflow-hidden rounded-[14px] p-5.5 text-paper shadow-[0_26px_60px_rgb(0_0_0/0.45)]">
+          {/* oversized gradient sliding against the travel direction for depth */}
+          <motion.div
+            className="absolute inset-y-0 left-[-15%] z-[-1] w-[130%]"
+            style={{ x: innerX }}
+          >
+            <div
+              className="size-full transition-transform duration-600 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:scale-[1.06]"
+              style={{ background: project.bg }}
+            />
+          </motion.div>
+          <span className="font-mono text-[0.78rem] tracking-[0.2em] opacity-85">
+            {String(index + 1).padStart(2, "0")} / 06
+          </span>
+          <div>
+            <h3 className="text-card text-paper">{project.title}</h3>
+            <div className="mt-1.5 flex justify-between font-mono text-[0.74rem] tracking-[0.12em] uppercase opacity-[0.82]">
+              <span>{project.category}</span>
+              <span>{project.year}</span>
+            </div>
           </div>
-        </div>
-      </motion.article>
+        </article>
+      </motion.div>
     </motion.div>
   );
 }
