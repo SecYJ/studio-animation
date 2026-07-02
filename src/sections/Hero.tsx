@@ -15,6 +15,9 @@ import { jitter } from "../lib/jitter";
 const EASE = [0.22, 1, 0.36, 1] as const;
 const CHAR_DELAY = 0.25; // s before the first letter lands
 const CHAR_STAGGER = 0.05; // s between letters
+const ROLL_DURATION = 0.5; // s per rolling letter — also the gap, so each letter
+// finishes before the next one enters
+const STUDIO_DELAY = CHAR_DELAY + 6 * ROLL_DURATION; // s — "studio" boards only after NEBULA lands
 
 type SharedMotion = {
   scrollProgress: MotionValue<number>;
@@ -28,15 +31,52 @@ type HeroCharProps = SharedMotion & {
   index: number;
   baseWeight: number;
   wonk?: boolean;
+  /** roll in horizontally from this side, strictly after the previous letter lands */
+  roll?: "left" | "right";
+  /** skip the per-letter entrance — a parent group carries the whole word in */
+  still?: boolean;
+  /** hold the entrance until the display font is loaded, to avoid a mid-flight swap */
+  play: boolean;
 };
 
-/** One headline letter. Blur-rises on load, swells in weight near the cursor
- *  (Fraunces variable axes), and scatters away with its own drift on scroll. */
+const FRAUNCES = '1em "Fraunces Variable"';
+
+/** True once Fraunces is ready (or after a 1.5s cap, so a failed font never
+ *  blocks the intro — worst case the old swap behavior). */
+function useDisplayFontReady() {
+  const [ready, setReady] = useState(
+    () => document.fonts.check(FRAUNCES) && document.fonts.check(`italic ${FRAUNCES}`),
+  );
+  useEffect(() => {
+    if (ready) return;
+    let alive = true;
+    const done = () => {
+      if (alive) setReady(true);
+    };
+    const cap = setTimeout(done, 1500);
+    Promise.all([document.fonts.load(FRAUNCES), document.fonts.load(`italic ${FRAUNCES}`)]).then(
+      done,
+      done,
+    );
+    return () => {
+      alive = false;
+      clearTimeout(cap);
+    };
+  }, [ready]);
+  return ready;
+}
+
+/** One headline letter. Blur-rises (or rolls in from a side) on load, swells in
+ *  weight near the cursor (Fraunces variable axes), and scatters away with its
+ *  own drift on scroll. */
 function HeroChar({
   char,
   index,
   baseWeight,
   wonk,
+  roll,
+  still,
+  play,
   scrollProgress,
   mouseX,
   mouseY,
@@ -80,9 +120,26 @@ function HeroChar({
     >
       <motion.span
         className="inline-block"
-        initial={reduce ? false : { y: "70%", opacity: 0, rotate: 9, filter: "blur(14px)" }}
-        animate={{ y: 0, opacity: 1, rotate: 0, filter: "blur(0px)" }}
-        transition={{ duration: 1.1, ease: EASE, delay: CHAR_DELAY + index * CHAR_STAGGER }}
+        initial={
+          reduce || still
+            ? false
+            : roll
+              ? {
+                  x: roll === "left" ? "-55vw" : "55vw",
+                  rotate: roll === "left" ? -360 : 360,
+                  opacity: 0,
+                  filter: "blur(10px)",
+                }
+              : { y: "70%", opacity: 0, rotate: 9, filter: "blur(14px)" }
+        }
+        animate={
+          play && !still ? { x: 0, y: 0, opacity: 1, rotate: 0, filter: "blur(0px)" } : undefined
+        }
+        transition={{
+          duration: roll ? ROLL_DURATION : 1.1,
+          ease: EASE,
+          delay: CHAR_DELAY + index * (roll ? ROLL_DURATION : CHAR_STAGGER),
+        }}
       >
         <motion.span
           ref={ref}
@@ -179,6 +236,7 @@ function LisbonClock() {
 export function Hero() {
   const ref = useRef<HTMLElement>(null);
   const reduce = useReducedMotion();
+  const fontsReady = useDisplayFontReady();
   const { scrollYProgress } = useScroll({
     target: ref,
     offset: ["start start", "end start"],
@@ -258,39 +316,78 @@ export function Hero() {
         <h1 className="font-display text-hero">
           <span className="block">
             {Array.from("NEBULA").map((char, i) => (
-              <HeroChar key={i} char={char} index={i} baseWeight={420} {...shared} />
+              <HeroChar
+                key={i}
+                char={char}
+                index={i}
+                baseWeight={420}
+                roll={i % 2 === 0 ? "left" : "right"}
+                play={fontsReady}
+                {...shared}
+              />
             ))}
           </span>
           <span className="block">
-            <span className="relative inline-block">
-              <span className="relative z-1 block font-[360] [font-variation-settings:'WONK'_1] text-terracotta italic">
-                {Array.from("studio").map((char, i) => (
-                  <HeroChar key={i} char={char} index={6 + i} baseWeight={360} wonk {...shared} />
-                ))}
-              </span>
-              {/* hand-drawn ink ellipse, drawn on after the letters land */}
-              <motion.svg
-                className="pointer-events-none absolute top-[-16%] left-[-9%] h-[134%] w-[118%] -rotate-2"
-                viewBox="0 0 100 44"
-                preserveAspectRatio="none"
-                aria-hidden="true"
-                style={reduce ? undefined : { opacity: inkFade }}
+            {/* the whole word rides an ink-swash "carpet" up from below,
+                boarding only after the last NEBULA letter has landed */}
+            <motion.span
+              className="inline-block"
+              initial={reduce ? false : { y: "120%", opacity: 0, rotate: 4 }}
+              animate={{ y: 0, opacity: 1, rotate: 0 }}
+              transition={{ delay: STUDIO_DELAY, type: "spring", bounce: 0.32, duration: 1.3 }}
+            >
+              <motion.span
+                className="relative block"
+                animate={reduce ? undefined : { y: [0, -5, 0] }}
+                transition={{
+                  delay: STUDIO_DELAY + 1.3,
+                  duration: 3.6,
+                  repeat: Infinity,
+                  ease: "easeInOut",
+                }}
               >
-                <motion.ellipse
-                  cx="50"
-                  cy="22"
-                  rx="48"
-                  ry="19"
-                  fill="none"
-                  stroke="var(--color-green)"
-                  strokeWidth={1.1}
-                  strokeLinecap="round"
-                  initial={reduce ? false : { pathLength: 0, opacity: 0 }}
-                  animate={{ pathLength: 1, opacity: 0.9 }}
-                  transition={{ delay: 1.25, duration: 1.1, ease: EASE }}
-                />
-              </motion.svg>
-            </span>
+                <span className="relative z-1 block font-[360] [font-variation-settings:'WONK'_1] text-terracotta italic">
+                  {Array.from("studio").map((char, i) => (
+                    <HeroChar
+                      key={i}
+                      char={char}
+                      index={6 + i}
+                      baseWeight={360}
+                      wonk
+                      still
+                      play={fontsReady}
+                      {...shared}
+                    />
+                  ))}
+                </span>
+                {/* the carpet itself: two loose ink swashes under the word */}
+                <motion.svg
+                  className="pointer-events-none absolute bottom-[-0.16em] left-[-4%] h-[0.3em] w-[108%]"
+                  viewBox="0 0 120 16"
+                  preserveAspectRatio="none"
+                  aria-hidden="true"
+                  style={reduce ? undefined : { opacity: inkFade }}
+                >
+                  <path
+                    d="M 2 7 Q 12 2 24 7 T 48 7 T 72 7 T 96 7 T 118 6"
+                    fill="none"
+                    stroke="var(--color-green)"
+                    strokeWidth={2.2}
+                    strokeLinecap="round"
+                    vectorEffect="non-scaling-stroke"
+                  />
+                  <path
+                    d="M 8 13 Q 20 9 34 12.5 T 64 12.5 T 92 12 T 112 11"
+                    fill="none"
+                    stroke="var(--color-green)"
+                    strokeWidth={1.3}
+                    strokeLinecap="round"
+                    vectorEffect="non-scaling-stroke"
+                    opacity={0.5}
+                  />
+                </motion.svg>
+              </motion.span>
+            </motion.span>
           </span>
         </h1>
 
