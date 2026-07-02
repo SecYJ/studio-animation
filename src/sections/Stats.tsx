@@ -1,6 +1,4 @@
-import { useEffect, useRef } from "react";
-import { motion, useInView, useReducedMotion } from "motion/react";
-import confetti from "canvas-confetti";
+import { motion } from "motion/react";
 import { CountUp } from "../components/CountUp";
 
 const stats = [
@@ -10,50 +8,9 @@ const stats = [
   { value: 11, suffix: "", label: "Awards & nods" },
 ];
 
-const CONFETTI_COLORS = ["#e0613a", "#c44a26", "#2f5d50", "#fbf6ec", "#241f1a"];
-
 export function Stats() {
-  const reduce = useReducedMotion();
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const sentinelRef = useRef<HTMLDivElement>(null);
-  const fired = useRef(false);
-  // fires when the bottom of the section is ~85% down the viewport (near the end)
-  const nearEnd = useInView(sentinelRef, { once: true, margin: "0px 0px -15% 0px" });
-
-  useEffect(() => {
-    if (!nearEnd || reduce || fired.current || !canvasRef.current) return;
-    fired.current = true;
-    const fire = confetti.create(canvasRef.current, { resize: true });
-    void fire({
-      particleCount: 90,
-      spread: 75,
-      startVelocity: 48,
-      origin: { y: 0.72 },
-      colors: CONFETTI_COLORS,
-    });
-    void fire({
-      particleCount: 50,
-      angle: 55,
-      spread: 60,
-      origin: { x: 0, y: 0.85 },
-      colors: CONFETTI_COLORS,
-    });
-    void fire({
-      particleCount: 50,
-      angle: 125,
-      spread: 60,
-      origin: { x: 1, y: 0.85 },
-      colors: CONFETTI_COLORS,
-    });
-  }, [nearEnd, reduce]);
-
   return (
     <section id="studio" className="relative bg-paper py-[clamp(96px,14vh,180px)]">
-      <canvas
-        ref={canvasRef}
-        aria-hidden="true"
-        className="pointer-events-none fixed inset-0 z-[10000] size-full"
-      />
       <div className="wrap">
         <div className="max-w-[60ch]">
           <span className="eyebrow text-terracotta-deep">By the numbers</span>
@@ -65,12 +22,14 @@ export function Stats() {
         <div className="mt-[clamp(40px,7vh,72px)] grid grid-cols-4 gap-[clamp(20px,3vw,48px)] max-[720px]:grid-cols-2">
           {stats.map((stat, i) => (
             <motion.div
-              className="border-t border-line pt-[18px]"
+              className="border-t border-line pt-[18px] will-change-transform"
               key={stat.label}
-              initial={{ opacity: 0, y: 30 }}
-              whileInView={{ opacity: 1, y: 0 }}
+              /* each figure stamps down like a rubber stamp on paper, settling
+                 a touch crooked — the springy overshoot sells the thump */
+              initial={{ opacity: 0, scale: 1.7, rotate: (i % 2 ? 1 : -1) * 5 }}
+              whileInView={{ opacity: 1, scale: 1, rotate: (i % 2 ? -1 : 1) * 1.1 }}
               viewport={{ once: true, margin: "-12% 0px" }}
-              transition={{ duration: 0.6, delay: i * 0.08 }}
+              transition={{ type: "spring", stiffness: 340, damping: 19, delay: 0.15 + i * 0.11 }}
             >
               <div className="flex items-baseline font-display text-stat">
                 <CountUp to={stat.value} />
@@ -82,8 +41,6 @@ export function Stats() {
             </motion.div>
           ))}
         </div>
-
-        <div ref={sentinelRef} aria-hidden="true" className="h-px w-full" />
       </div>
     </section>
   );

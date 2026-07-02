@@ -15,6 +15,7 @@
   --color-terracotta-deep: #c44a26;
   --color-green: #2f5d50;
   --color-green-deep: #234539;
+  --color-gold: #ffdba6;
   --color-line: rgb(36 31 26 / 0.16);
 
   /* type families */
@@ -69,10 +70,9 @@
 }
 
 @layer base {
-  html {
-    scroll-behavior: smooth;
-  }
-
+  /* NOTE: no `scroll-behavior: smooth` here — it fights Lenis (every scroll
+     write would get re-animated by the browser). Lenis handles smoothing
+     and anchor scrolling; reduced-motion users get instant jumps. */
   body {
     background: var(--color-cream);
     color: var(--color-ink);
@@ -97,12 +97,6 @@
     background: var(--color-terracotta);
     color: var(--color-paper);
   }
-
-  @media (prefers-reduced-motion: reduce) {
-    html {
-      scroll-behavior: auto;
-    }
-  }
 }
 
 /* ---- irreducible effects kept as custom utilities ---- */
@@ -113,6 +107,42 @@
   max-width: 1240px;
   margin-inline: auto;
   padding-inline: clamp(20px, 5vw, 64px);
+}
+
+/* email link that "strikes like a match": underline sweeps in glowing, text warms up */
+@utility match-link {
+  position: relative;
+  padding-bottom: 4px;
+  transition:
+    color 0.45s ease,
+    text-shadow 0.6s ease;
+
+  &::after {
+    content: "";
+    position: absolute;
+    inset-inline: 0;
+    bottom: 0;
+    height: 2px;
+    background: linear-gradient(
+      90deg,
+      #ffdba6,
+      var(--color-terracotta) 45%,
+      var(--color-terracotta-deep)
+    );
+    box-shadow: 0 0 14px rgb(224 97 58 / 0.85);
+    transform: scaleX(0);
+    transform-origin: left;
+    transition: transform 0.55s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  &:hover {
+    color: #ffd2a3;
+    text-shadow: 0 0 26px rgb(255 170 90 / 0.5);
+  }
+
+  &:hover::after {
+    transform: scaleX(1);
+  }
 }
 
 /* small mono label with a leading rule; inherits its text color */
@@ -131,5 +161,119 @@
     height: 1px;
     background: currentColor;
     opacity: 0.6;
+  }
+}
+
+/* ---- sunlit-atelier ambience (compositor-only animations) ---- */
+
+/* shafts of window light panning slowly across the hero */
+@keyframes beam-pan {
+  from {
+    transform: translateX(-10%);
+  }
+  to {
+    transform: translateX(4%);
+  }
+}
+
+.animate-beam {
+  animation: beam-pan 30s ease-in-out infinite alternate;
+}
+
+/* floating particle — dust in daylight, ember at night */
+@keyframes mote-drift {
+  0%,
+  100% {
+    transform: translate3d(0, 8px, 0);
+    opacity: 0;
+  }
+  22%,
+  78% {
+    opacity: 0.85;
+  }
+  50% {
+    transform: translate3d(var(--mote-dx, 16px), var(--mote-dy, -22px), 0);
+    opacity: 0.65;
+  }
+}
+
+.mote {
+  position: absolute;
+  border-radius: 9999px;
+  opacity: 0;
+  animation: mote-drift 9s ease-in-out infinite;
+}
+
+.mote-dust {
+  background: rgb(255 230 178 / 0.9);
+  box-shadow: 0 0 6px rgb(255 214 150 / 0.7);
+}
+
+.mote-ember {
+  background: rgb(255 176 110 / 0.9);
+  box-shadow: 0 0 9px rgb(224 97 58 / 0.9);
+}
+
+/* breathing halo around the ink nib in the Process drafting board */
+@keyframes nib-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.5;
+  }
+  50% {
+    transform: scale(1.8);
+    opacity: 0.12;
+  }
+}
+
+.nib-halo {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: nib-pulse 2.4s ease-in-out infinite;
+}
+
+/* the spark's four-point glint, slowly rotating as it rides the fuse */
+@keyframes spark-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.spark-spin {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: spark-spin 5s linear infinite;
+}
+
+/* sparse gold stars breathing in the night sky */
+@keyframes twinkle {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.twinkle {
+  animation: twinkle 5.5s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-beam,
+  .mote,
+  .nib-halo,
+  .spark-spin,
+  .twinkle {
+    animation: none;
+  }
+
+  .mote {
+    opacity: 0.4;
   }
 }
