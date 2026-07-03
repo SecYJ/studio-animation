@@ -33,7 +33,7 @@
     "globals": "^17.7.0",
     "playwright": "^1.61.1",
     "typescript": "~6.0.3",
-    "vite": "npm:@voidzero-dev/vite-plus-core@^0.2.1",
+    "vite": "npm:@voidzero-dev/vite-plus-core@^0.2.2",
     "vite-plus": "catalog:"
   },
   "packageManager": "pnpm@11.6.0"
