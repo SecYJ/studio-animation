@@ -263,24 +263,30 @@ function WorkHorizontal() {
           className="flex items-baseline justify-between gap-5 px-[clamp(20px,5vw,64px)] pb-[clamp(24px,5vh,48px)]"
           style={{ x: headerX }}
         >
-          <h2 className="overflow-hidden text-headline text-paper">
+          {/* the in-view trigger sits on the h2: the hidden span is fully clipped
+              by the overflow mask, so observing it directly never fires */}
+          <motion.h2
+            className="overflow-hidden text-headline text-paper"
+            initial="hidden"
+            whileInView="shown"
+            viewport={{ once: true }}
+          >
             <motion.span
               className="block will-change-transform"
-              initial={{ y: "110%" }}
-              whileInView={{ y: "0%" }}
-              viewport={{ once: true }}
+              variants={{ hidden: { y: "110%" }, shown: { y: "0%" } }}
               transition={{ duration: 0.85, ease: [0.22, 1, 0.36, 1] }}
             >
               Selected <em className="text-terracotta italic">work</em>
             </motion.span>
-          </h2>
+          </motion.h2>
           <span className="font-mono text-[0.8rem] tracking-[0.2em] text-terracotta">
             06 projects
           </span>
         </motion.div>
 
+        {/* pb reserves the 72px the outer cards arc down, so they clear the rail */}
         <motion.div
-          className="relative z-1 flex items-start gap-[clamp(20px,3vw,40px)] px-[clamp(20px,5vw,64px)] will-change-transform"
+          className="relative z-1 flex items-start gap-[clamp(20px,3vw,40px)] px-[clamp(20px,5vw,64px)] pb-[72px] will-change-transform"
           ref={trackRef}
           style={{ x, skewX }}
         >

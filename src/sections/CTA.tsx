@@ -8,6 +8,7 @@ import {
   useTransform,
   type MotionValue,
 } from "motion/react";
+import { EmberText } from "../components/EmberText";
 import { Motes } from "../components/Motes";
 import { useMediaQuery } from "../lib/useMediaQuery";
 
@@ -41,8 +42,10 @@ function Crescent() {
   );
 }
 
-/** The night side of the portal: starfield, headline that rolls in word by
- *  word once the circle covers the screen, match-strike email, footer. */
+/** The night side of the portal: once the circle covers the screen, a few
+ *  thousand embers burst off its rim, spiral in and forge the headline; a
+ *  fuse of sparks then runs from the last word and strikes the email like a
+ *  match. The cursor is a gust that scatters the glowing letters. */
 function NightScene({
   entered,
   dollyScale,
@@ -50,8 +53,16 @@ function NightScene({
   entered: boolean;
   dollyScale?: MotionValue<number>;
 }) {
+  const stageRef = useRef<HTMLDivElement>(null);
+  const headlineRef = useRef<HTMLHeadingElement>(null);
+  const emailRef = useRef<HTMLAnchorElement>(null);
+  /* the email (and footer) wait for the fuse to arrive */
+  const [lit, setLit] = useState(false);
+  const shown = entered && lit;
+
   return (
     <motion.div
+      ref={stageRef}
       className="relative flex h-full flex-col items-center justify-center will-change-transform"
       style={{ scale: dollyScale }}
     >
@@ -91,6 +102,14 @@ function NightScene({
         <Motes variant="ember" count={10} seed={57} />
       </motion.div>
 
+      <EmberText
+        stageRef={stageRef}
+        textRef={headlineRef}
+        targetRef={emailRef}
+        active={entered}
+        onLitChange={setLit}
+      />
+
       <div className="wrap relative z-2 flex flex-col items-center gap-[clamp(28px,5vh,48px)] text-center">
         <motion.span
           className="eyebrow text-terracotta"
@@ -101,30 +120,43 @@ function NightScene({
           Let&apos;s talk
         </motion.span>
 
-        <h2 className="max-w-[14ch] text-cta">
+        {/* real, selectable text laid out as usual but transparent — the
+            embers on the canvas below are drawn from exactly this layout */}
+        {/* the transparent glyphs still cast their text-shadow: a soft, static
+            bed of heat glowing under the embers once they've landed */}
+        <motion.h2
+          ref={headlineRef}
+          className="max-w-[14ch] text-cta text-transparent [text-shadow:0_0_34px_rgb(255_140_70/0.32)]"
+          initial={false}
+          animate={{ opacity: entered ? 1 : 0 }}
+          transition={{ duration: entered ? 1.4 : 0.3, delay: entered ? 1.2 : 0 }}
+        >
           {headline.map((word, i) => (
-            <span className="inline-block overflow-hidden pb-[0.1em] align-bottom" key={word.text}>
-              <motion.span
-                className={`inline-block will-change-transform ${
-                  word.accent ? "text-terracotta italic" : ""
-                }`}
-                initial={false}
-                animate={entered ? { y: "0%" } : { y: "115%" }}
-                transition={{ duration: 0.75, ease: EASE, delay: entered ? 0.2 + i * 0.06 : 0 }}
+            <span key={word.text}>
+              <span
+                data-ember-word=""
+                data-accent={word.accent ? "" : undefined}
+                className={`inline-block ${word.accent ? "italic" : ""}`}
               >
                 {word.text}
-              </motion.span>
-              {i < headline.length - 1 && <span>&nbsp;</span>}
+              </span>
+              {i < headline.length - 1 && " "}
             </span>
           ))}
-        </h2>
+        </motion.h2>
 
+        {/* struck by the fuse: flares white-hot and settles into the match glow */}
         <motion.a
+          ref={emailRef}
           className="match-link font-display text-[clamp(1.4rem,3vw,2.4rem)] italic"
           href="mailto:hello@nebula.studio"
           initial={false}
-          animate={entered ? { opacity: 1, y: 0 } : { opacity: 0, y: 24 }}
-          transition={{ duration: 0.65, ease: EASE, delay: entered ? 0.65 : 0 }}
+          animate={
+            shown
+              ? { opacity: 1, filter: "brightness(1) blur(0px)" }
+              : { opacity: 0, filter: "brightness(2.4) blur(4px)" }
+          }
+          transition={{ duration: shown ? 0.9 : 0.3, ease: EASE }}
         >
           hello@nebula.studio
         </motion.a>
@@ -133,8 +165,8 @@ function NightScene({
       <motion.div
         className="absolute inset-x-0 bottom-0 px-[clamp(20px,5vw,64px)] pb-[clamp(20px,4vh,36px)]"
         initial={false}
-        animate={entered ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
-        transition={{ duration: 0.7, ease: EASE, delay: entered ? 0.85 : 0 }}
+        animate={shown ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
+        transition={{ duration: 0.7, ease: EASE, delay: shown ? 0.5 : 0 }}
       >
         <div className="flex w-full flex-wrap justify-between gap-x-[clamp(20px,5vw,60px)] gap-y-[14px] border-t border-[rgb(244_237_225_/_0.2)] pt-6 font-mono text-[0.74rem] tracking-[0.14em] text-[rgb(244_237_225_/_0.6)] uppercase">
           <span>Nebula Studio © 2026</span>

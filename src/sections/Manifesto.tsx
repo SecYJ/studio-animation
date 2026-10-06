@@ -2,6 +2,7 @@ import { useRef } from "react";
 import {
   motion,
   useAnimationFrame,
+  useInView,
   useMotionValue,
   useReducedMotion,
   useScroll,
@@ -146,9 +147,12 @@ function VelocityMarquee() {
   });
   const skewX = useTransform(smoothVelocity, [-1500, 1500], [5, -5]);
   const direction = useRef(1);
+  const ref = useRef<HTMLDivElement>(null);
+  const inView = useInView(ref);
 
   useAnimationFrame((_, delta) => {
-    if (reduce) return;
+    // parked while off-screen: no per-frame transform writes nobody can see
+    if (reduce || !inView) return;
     const vf = velocityFactor.get();
     if (vf < 0) direction.current = -1;
     else if (vf > 0) direction.current = 1;
@@ -160,6 +164,7 @@ function VelocityMarquee() {
 
   return (
     <div
+      ref={ref}
       className="overflow-hidden border-y border-line py-[18px] whitespace-nowrap [mask-image:linear-gradient(90deg,transparent,#000_8%,#000_92%,transparent)] [-webkit-mask-image:linear-gradient(90deg,transparent,#000_8%,#000_92%,transparent)]"
       aria-hidden="true"
     >

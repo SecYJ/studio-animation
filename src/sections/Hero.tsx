@@ -13,11 +13,11 @@ import { Motes } from "../components/Motes";
 import { jitter } from "../lib/jitter";
 
 const EASE = [0.22, 1, 0.36, 1] as const;
-const CHAR_DELAY = 0.25; // s before the first letter lands
-const CHAR_STAGGER = 0.05; // s between letters
-const ROLL_DURATION = 0.5; // s per rolling letter — also the gap, so each letter
-// finishes before the next one enters
-const STUDIO_DELAY = CHAR_DELAY + 6 * ROLL_DURATION; // s — "studio" boards only after NEBULA lands
+const CHAR_DELAY = 0.1; // s before the first letter leaves its wing
+const CHAR_STAGGER = 0.11; // s between letters — rolls overlap into one cascading wave
+const ROLL_DURATION = 1.15; // s per rolling letter
+/* "studio" boards as the last NEBULA letter is settling */
+const STUDIO_DELAY = CHAR_DELAY + 5 * CHAR_STAGGER + ROLL_DURATION * 0.7;
 
 type SharedMotion = {
   scrollProgress: MotionValue<number>;
@@ -41,28 +41,34 @@ type HeroCharProps = SharedMotion & {
 
 const FRAUNCES = '1em "Fraunces Variable"';
 
-/** True once Fraunces is ready (or after a 1.5s cap, so a failed font never
- *  blocks the intro — worst case the old swap behavior). */
-function useDisplayFontReady() {
-  const [ready, setReady] = useState(
-    () => document.fonts.check(FRAUNCES) && document.fonts.check(`italic ${FRAUNCES}`),
-  );
+/** True once Fraunces is ready AND the main thread has gone quiet after the
+ *  first mount (every section measures + re-renders right after boot — a
+ *  100–250ms burst that would otherwise stutter the first letters). Capped
+ *  at 1.5s so a failed font or a busy page never blocks the intro. */
+function useIntroReady() {
+  const [ready, setReady] = useState(false);
   useEffect(() => {
-    if (ready) return;
     let alive = true;
+    let idle = 0;
     const done = () => {
       if (alive) setReady(true);
     };
     const cap = setTimeout(done, 1500);
-    Promise.all([document.fonts.load(FRAUNCES), document.fonts.load(`italic ${FRAUNCES}`)]).then(
-      done,
-      done,
-    );
+    const fonts = Promise.all([
+      document.fonts.load(FRAUNCES),
+      document.fonts.load(`italic ${FRAUNCES}`),
+    ]).catch(() => undefined);
+    void fonts.then(() => {
+      if (!alive) return;
+      if ("requestIdleCallback" in window) idle = requestIdleCallback(done, { timeout: 400 });
+      else setTimeout(done, 120);
+    });
     return () => {
       alive = false;
       clearTimeout(cap);
+      if (idle) cancelIdleCallback(idle);
     };
-  }, [ready]);
+  }, []);
   return ready;
 }
 
@@ -82,7 +88,25 @@ function HeroChar({
   mouseY,
 }: HeroCharProps) {
   const reduce = useReducedMotion();
+  /* the scatter wrapper: its box ignores the intro roll and the hover lift,
+     so its centre is a stable anchor for proximity */
   const ref = useRef<HTMLSpanElement>(null);
+  const centre = useRef<{ x: number; y: number } | null>(null);
+
+  /* the anchor only moves when the page scrolls or resizes — measure lazily
+     after either, instead of forcing a layout per letter on every pointermove
+     (the variable-font axes below dirty layout each frame) */
+  useEffect(() => {
+    const invalidate = () => {
+      centre.current = null;
+    };
+    window.addEventListener("scroll", invalidate, { passive: true });
+    window.addEventListener("resize", invalidate);
+    return () => {
+      window.removeEventListener("scroll", invalidate);
+      window.removeEventListener("resize", invalidate);
+    };
+  }, []);
 
   /* cursor proximity 0..1 — only recomputes while the pointer moves.
      Read the motion values before any early return so dependency tracking sees them. */
@@ -90,59 +114,79 @@ function HeroChar({
     const mx = mouseX.get();
     const my = mouseY.get();
     const el = ref.current;
-    if (!el) return 0;
-    const r = el.getBoundingClientRect();
-    const dx = mx - (r.left + r.width / 2);
-    const dy = my - (r.top + r.height / 2);
+    if (!el || mx < -9000) return 0;
+    if (!centre.current) {
+      const r = el.getBoundingClientRect();
+      centre.current = { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+    }
     const radius = Math.max(220, window.innerWidth * 0.13);
-    return Math.max(0, 1 - Math.hypot(dx, dy) / radius);
+    return Math.max(0, 1 - Math.hypot(mx - centre.current.x, my - centre.current.y) / radius);
   });
-  const glow = useSpring(prox, { stiffness: 170, damping: 20 });
+  const glow = useSpring(prox, { stiffness: 170, damping: 20, restDelta: 0.004 });
 
+  /* axes snap to small steps: a new value re-shapes + re-rasters a 13rem
+     glyph, so the spring's long sub-pixel tail shouldn't cost a frame each */
   const fontVariationSettings = useTransform(
     glow,
     (p) =>
-      `"opsz" 144, "wght" ${Math.round(baseWeight + p * 240)}, "SOFT" ${Math.round(p * 55)}` +
+      `"opsz" 144, "wght" ${baseWeight + Math.round((p * 240) / 6) * 6}, "SOFT" ${Math.round((p * 55) / 5) * 5}` +
       (wonk ? `, "WONK" 1` : ""),
   );
   const lift = useTransform(glow, (p) => p * -9);
 
-  /* on scroll-out each letter drifts on its own arc, like paper scraps in a draught */
+  /* on scroll-out each letter tumbles away on its own arc, like paper scraps
+     caught in a draught — spinning through depth, not just across the page */
   const j = jitter(index);
+  const k = jitter(index + 31);
   const scatterY = useTransform(scrollProgress, [0, 1], [0, 70 + j * 190]);
   const scatterX = useTransform(scrollProgress, [0, 1], [0, (j - 0.5) * 240]);
   const scatterRotate = useTransform(scrollProgress, [0, 1], [0, (j - 0.5) * 46]);
+  const scatterRotateX = useTransform(scrollProgress, [0, 1], [0, (k - 0.5) * 140]);
+  const scatterRotateY = useTransform(
+    scrollProgress,
+    [0, 1],
+    [0, (jitter(index + 57) - 0.5) * 110],
+  );
+
+  /* entrance runs as a single `transform` string so Motion hands it to WAAPI:
+     it plays on the compositor and can't be stuttered by main-thread work */
+  const from = roll
+    ? `translateX(${roll === "left" ? -55 : 55}vw) rotate(${roll === "left" ? -360 : 360}deg)`
+    : "translateY(70%) rotate(9deg)";
+  const to = roll ? "translateX(0vw) rotate(0deg)" : "translateY(0%) rotate(0deg)";
 
   return (
     <motion.span
+      ref={ref}
       className="inline-block will-change-transform"
-      style={reduce ? undefined : { y: scatterY, x: scatterX, rotate: scatterRotate }}
+      style={
+        reduce
+          ? undefined
+          : {
+              y: scatterY,
+              x: scatterX,
+              rotate: scatterRotate,
+              rotateX: scatterRotateX,
+              rotateY: scatterRotateY,
+              transformPerspective: 900,
+            }
+      }
     >
       <motion.span
         className="inline-block"
         initial={
           reduce || still
             ? false
-            : roll
-              ? {
-                  x: roll === "left" ? "-55vw" : "55vw",
-                  rotate: roll === "left" ? -360 : 360,
-                  opacity: 0,
-                  filter: "blur(10px)",
-                }
-              : { y: "70%", opacity: 0, rotate: 9, filter: "blur(14px)" }
+            : { transform: from, opacity: 0, filter: `blur(${roll ? 10 : 14}px)` }
         }
-        animate={
-          play && !still ? { x: 0, y: 0, opacity: 1, rotate: 0, filter: "blur(0px)" } : undefined
-        }
+        animate={play && !still ? { transform: to, opacity: 1, filter: "blur(0px)" } : undefined}
         transition={{
           duration: roll ? ROLL_DURATION : 1.1,
           ease: EASE,
-          delay: CHAR_DELAY + index * (roll ? ROLL_DURATION : CHAR_STAGGER),
+          delay: CHAR_DELAY + index * CHAR_STAGGER,
         }}
       >
         <motion.span
-          ref={ref}
           className="inline-block"
           style={reduce ? undefined : { fontVariationSettings, y: lift }}
         >
@@ -171,7 +215,7 @@ function WindowLight() {
 const BADGE_TEXT = "MOTION · DESIGN · WEB · EST. 2018 · ";
 
 /** Retro sticker: circular mono text slowly orbiting a terracotta asterisk. */
-function OrbitBadge({ fade }: { fade: MotionValue<number> }) {
+function OrbitBadge({ fade, play }: { fade: MotionValue<number>; play: boolean }) {
   const reduce = useReducedMotion();
   return (
     <motion.div
@@ -181,31 +225,37 @@ function OrbitBadge({ fade }: { fade: MotionValue<number> }) {
     >
       <motion.div
         className="relative size-full"
-        initial={reduce ? false : { opacity: 0, scale: 0.6, rotate: -40 }}
-        animate={{ opacity: 1, scale: 1, rotate: 0 }}
-        transition={{ delay: 1.5, duration: 1, ease: EASE }}
+        initial={reduce ? false : { opacity: 0, transform: "scale(0.6) rotate(-40deg)" }}
+        animate={play ? { opacity: 1, transform: "scale(1) rotate(0deg)" } : undefined}
+        transition={{ delay: STUDIO_DELAY + 0.3, duration: 1, ease: EASE }}
       >
-        <motion.svg
-          viewBox="0 0 100 100"
+        {/* endless spins live on HTML wrappers as `transform` keyframes, so
+            they run on the compositor instead of ticking JS every frame */}
+        <motion.div
           className="size-full"
-          animate={reduce ? undefined : { rotate: 360 }}
+          animate={reduce ? undefined : { transform: ["rotate(0deg)", "rotate(360deg)"] }}
           transition={{ duration: 26, ease: "linear", repeat: Infinity }}
         >
-          <defs>
-            <path id="hero-badge-arc" d="M 50 50 m -40 0 a 40 40 0 1 1 80 0 a 40 40 0 1 1 -80 0" />
-          </defs>
-          <text
-            className="font-mono uppercase"
-            fill="var(--color-ink-soft)"
-            fontSize="7.4"
-            letterSpacing="2.5"
-          >
-            <textPath href="#hero-badge-arc">{BADGE_TEXT}</textPath>
-          </text>
-        </motion.svg>
+          <svg viewBox="0 0 100 100" className="size-full">
+            <defs>
+              <path
+                id="hero-badge-arc"
+                d="M 50 50 m -40 0 a 40 40 0 1 1 80 0 a 40 40 0 1 1 -80 0"
+              />
+            </defs>
+            <text
+              className="font-mono uppercase"
+              fill="var(--color-ink-soft)"
+              fontSize="7.4"
+              letterSpacing="2.5"
+            >
+              <textPath href="#hero-badge-arc">{BADGE_TEXT}</textPath>
+            </text>
+          </svg>
+        </motion.div>
         <motion.span
           className="absolute inset-0 grid place-items-center text-[clamp(1.5rem,2.2vw,2.2rem)] text-terracotta"
-          animate={reduce ? undefined : { rotate: -360 }}
+          animate={reduce ? undefined : { transform: ["rotate(0deg)", "rotate(-360deg)"] }}
           transition={{ duration: 40, ease: "linear", repeat: Infinity }}
         >
           ✳
@@ -236,7 +286,7 @@ function LisbonClock() {
 export function Hero() {
   const ref = useRef<HTMLElement>(null);
   const reduce = useReducedMotion();
-  const fontsReady = useDisplayFontReady();
+  const play = useIntroReady();
   const { scrollYProgress } = useScroll({
     target: ref,
     offset: ["start start", "end start"],
@@ -298,17 +348,18 @@ export function Hero() {
         </>
       )}
 
-      <OrbitBadge fade={inkFade} />
+      <OrbitBadge fade={inkFade} play={play} />
 
+      {/* own layer: scaling + fading it on scroll must not re-raster the copy */}
       <motion.div
-        className="wrap relative z-2 w-full"
+        className="wrap relative z-2 w-full will-change-transform"
         style={reduce ? undefined : { scale, y: contentY, opacity }}
       >
         <motion.span
           className="eyebrow mb-[clamp(20px,4vh,40px)] text-terracotta-deep"
-          initial={reduce ? false : { opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1, duration: 0.9, ease: EASE }}
+          initial={reduce ? false : { opacity: 0, transform: "translateY(12px)" }}
+          animate={play ? { opacity: 1, transform: "translateY(0px)" } : undefined}
+          transition={{ duration: 0.9, ease: EASE }}
         >
           Independent design &amp; motion studio — est. 2018
         </motion.span>
@@ -322,7 +373,7 @@ export function Hero() {
                 index={i}
                 baseWeight={420}
                 roll={i % 2 === 0 ? "left" : "right"}
-                play={fontsReady}
+                play={play}
                 {...shared}
               />
             ))}
@@ -332,13 +383,21 @@ export function Hero() {
                 boarding only after the last NEBULA letter has landed */}
             <motion.span
               className="inline-block"
-              initial={reduce ? false : { y: "120%", opacity: 0, rotate: 4 }}
-              animate={{ y: 0, opacity: 1, rotate: 0 }}
-              transition={{ delay: STUDIO_DELAY, type: "spring", bounce: 0.32, duration: 1.3 }}
+              initial={reduce ? false : { transform: "translateY(120%) rotate(4deg)", opacity: 0 }}
+              animate={play ? { transform: "translateY(0%) rotate(0deg)", opacity: 1 } : undefined}
+              transition={{
+                delay: STUDIO_DELAY,
+                transform: { type: "spring", bounce: 0.32, duration: 1.3, delay: STUDIO_DELAY },
+                opacity: { duration: 0.4, delay: STUDIO_DELAY },
+              }}
             >
               <motion.span
                 className="relative block"
-                animate={reduce ? undefined : { y: [0, -5, 0] }}
+                animate={
+                  play && !reduce
+                    ? { transform: ["translateY(0px)", "translateY(-5px)", "translateY(0px)"] }
+                    : undefined
+                }
                 transition={{
                   delay: STUDIO_DELAY + 1.3,
                   duration: 3.6,
@@ -355,7 +414,7 @@ export function Hero() {
                       baseWeight={360}
                       wonk
                       still
-                      play={fontsReady}
+                      play={play}
                       {...shared}
                     />
                   ))}
@@ -393,9 +452,9 @@ export function Hero() {
 
         <motion.div
           className="mt-[clamp(40px,8vh,88px)] flex flex-wrap items-end justify-between gap-[clamp(18px,5vw,64px)]"
-          initial={reduce ? false : { opacity: 0, y: 26 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 1.05, duration: 1, ease: EASE }}
+          initial={reduce ? false : { opacity: 0, transform: "translateY(26px)" }}
+          animate={play ? { opacity: 1, transform: "translateY(0px)" } : undefined}
+          transition={{ delay: STUDIO_DELAY - 0.2, duration: 1, ease: EASE }}
         >
           <p className="max-w-[34ch] text-[clamp(1rem,1.4vw,1.18rem)] text-ink-soft">
             We craft motion-led brands and digital places people don&apos;t want to leave — from a
@@ -407,7 +466,9 @@ export function Hero() {
             <span className="inline-flex items-center gap-[0.6em]">
               <motion.span
                 className="inline-block h-9 w-px origin-top bg-terracotta"
-                animate={{ scaleY: [1, 0.3, 1] }}
+                animate={
+                  reduce ? undefined : { transform: ["scaleY(1)", "scaleY(0.3)", "scaleY(1)"] }
+                }
                 transition={{ duration: 1.8, repeat: Infinity, ease: "easeInOut" }}
               />
               Scroll

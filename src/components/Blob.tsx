@@ -48,14 +48,16 @@ export function Blob({ position, gradient, restOpacity, hoverOpacity, parallaxY 
 
   return (
     <motion.div
-      className={`absolute ${position} will-change-transform`}
+      className={`absolute ${position}`}
       style={{ y: parallaxY }}
       onPointerEnter={() => setActive(true)}
       onPointerMove={handleMove}
       onPointerLeave={handleLeave}
     >
+      {/* the blurred orb is its own layer: the compositor moves the already-
+          blurred texture instead of re-rastering a 40px blur on every hover frame */}
       <motion.div
-        className={`size-full rounded-full blur-2xl ${gradient}`}
+        className={`size-full rounded-full blur-2xl will-change-transform ${gradient}`}
         style={{ x, y }}
         animate={{ scale: active ? 1.16 : 1, opacity: active ? hoverOpacity : restOpacity }}
         transition={{ type: "spring", stiffness: 140, damping: 20 }}

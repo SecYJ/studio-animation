@@ -241,9 +241,12 @@ function StatsZoom() {
           </span>
         </motion.div>
 
-        {/* the door itself: dive into the waist of the eight */}
+        {/* the door itself: dive into the waist of the eight. Deliberately no
+            will-change: a pinned layer is rasterized once at 1x and then
+            stretched up to 85x — the edges turn to staircases. Without it
+            Chrome re-rasters the (single, flat) glyph at its true scale. */}
         <motion.div
-          className="pointer-events-none absolute inset-0 flex items-center justify-center will-change-transform"
+          className="pointer-events-none absolute inset-0 flex items-center justify-center"
           style={{ scale: glyphScale, rotate: glyphRotate }}
           aria-hidden="true"
         >
