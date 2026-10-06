@@ -8,7 +8,6 @@ import {
   useSpring,
   useTransform,
 } from "motion/react";
-import { Blob } from "../components/Blob";
 import { Motes } from "../components/Motes";
 import { jitter } from "../lib/jitter";
 
@@ -21,6 +20,7 @@ const STUDIO_DELAY = CHAR_DELAY + 5 * CHAR_STAGGER + ROLL_DURATION * 0.7;
 
 type SharedMotion = {
   scrollProgress: MotionValue<number>;
+  /** cursor, viewport coords — drives the letters' weight bloom */
   mouseX: MotionValue<number>;
   mouseY: MotionValue<number>;
 };
@@ -88,40 +88,53 @@ function HeroChar({
   mouseY,
 }: HeroCharProps) {
   const reduce = useReducedMotion();
-  /* the scatter wrapper: its box ignores the intro roll and the hover lift,
-     so its centre is a stable anchor for proximity */
+  /* the scatter wrapper: its layout box ignores the intro roll, the hover
+     lift and the scroll scatter, so its centre is a stable anchor */
   const ref = useRef<HTMLSpanElement>(null);
   const centre = useRef<{ x: number; y: number } | null>(null);
 
-  /* the anchor only moves when the page scrolls or resizes — measure lazily
-     after either, instead of forcing a layout per letter on every pointermove
-     (the variable-font axes below dirty layout each frame) */
+  /* page-coordinate centre from the offset chain: transforms and scrolling
+     never move it, so it's measured once and only re-taken when the glyph's
+     box changes (font swap, resize) — no layout reads per frame */
   useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
     const invalidate = () => {
       centre.current = null;
     };
-    window.addEventListener("scroll", invalidate, { passive: true });
+    const observer = new ResizeObserver(invalidate);
+    observer.observe(el);
     window.addEventListener("resize", invalidate);
     return () => {
-      window.removeEventListener("scroll", invalidate);
+      observer.disconnect();
       window.removeEventListener("resize", invalidate);
     };
   }, []);
+  const anchor = () => {
+    const el = ref.current;
+    if (!centre.current && el) {
+      let x = el.offsetWidth / 2;
+      let y = el.offsetHeight / 2;
+      for (let n: HTMLElement | null = el; n; n = n.offsetParent as HTMLElement | null) {
+        x += n.offsetLeft;
+        y += n.offsetTop;
+      }
+      centre.current = { x, y };
+    }
+    return centre.current;
+  };
 
   /* cursor proximity 0..1 — only recomputes while the pointer moves.
      Read the motion values before any early return so dependency tracking sees them. */
   const prox = useTransform(() => {
     const mx = mouseX.get();
     const my = mouseY.get();
-    const el = ref.current;
-    if (!el || mx < -9000) return 0;
-    if (!centre.current) {
-      const r = el.getBoundingClientRect();
-      centre.current = { x: r.left + r.width / 2, y: r.top + r.height / 2 };
-    }
+    const c = anchor();
+    if (!c || mx < -9000) return 0;
     const radius = Math.max(220, window.innerWidth * 0.13);
-    return Math.max(0, 1 - Math.hypot(mx - centre.current.x, my - centre.current.y) / radius);
+    return Math.max(0, 1 - Math.hypot(mx - c.x, my - (c.y - window.scrollY)) / radius);
   });
+
   const glow = useSpring(prox, { stiffness: 170, damping: 20, restDelta: 0.004 });
 
   /* axes snap to small steps: a new value re-shapes + re-rasters a 13rem
@@ -173,7 +186,7 @@ function HeroChar({
       }
     >
       <motion.span
-        className="inline-block"
+        className="relative inline-block"
         initial={
           reduce || still
             ? false
@@ -186,8 +199,29 @@ function HeroChar({
           delay: CHAR_DELAY + index * CHAR_STAGGER,
         }}
       >
+        {!reduce && (
+          <>
+            {/* the window light is far away, so every letter's shadow falls
+                the same way — down-left — and drifts as the afternoon moves */}
+            <motion.span
+              aria-hidden="true"
+              className="hero-shadow hero-shadow-far pointer-events-none absolute inset-0 text-transparent select-none [text-shadow:0_0_22px_rgb(60_40_24/0.3)]"
+              style={{ fontVariationSettings }}
+            >
+              {char}
+            </motion.span>
+            {/* tight contact shadow where the letter meets the wall */}
+            <motion.span
+              aria-hidden="true"
+              className="hero-shadow hero-shadow-near pointer-events-none absolute inset-0 text-transparent select-none [text-shadow:0_0_4px_rgb(60_40_24/0.32)]"
+              style={{ fontVariationSettings }}
+            >
+              {char}
+            </motion.span>
+          </>
+        )}
         <motion.span
-          className="inline-block"
+          className="relative inline-block"
           style={reduce ? undefined : { fontVariationSettings, y: lift }}
         >
           {char}
@@ -197,18 +231,142 @@ function HeroChar({
   );
 }
 
-/** Tall shafts of afternoon light panning slowly across the studio wall. */
-function WindowLight() {
+/* three branches reaching into the window from its top-right corner;
+   leaves alternate sides along each one (viewBox units, 100 × 150) */
+type Leaf = { x: number; y: number; angle: number; size: number };
+function branchLeaves(seed: number, from: [number, number], to: [number, number], bend: number) {
+  const leaves: Leaf[] = [];
+  const count = 11;
+  for (let i = 1; i <= count; i++) {
+    const t = i / count;
+    const x = from[0] + (to[0] - from[0]) * t + Math.sin(t * Math.PI) * bend;
+    const y = from[1] + (to[1] - from[1]) * t;
+    const heading = (Math.atan2(to[1] - from[1], to[0] - from[0]) * 180) / Math.PI;
+    leaves.push({
+      x,
+      y,
+      angle: heading + (i % 2 ? 55 : -55) + (jitter(seed + i) - 0.5) * 30,
+      size: 0.8 + jitter(seed + i * 3) * 0.7,
+    });
+  }
+  return leaves;
+}
+const BRANCHES = [
+  { d: "M 104 -4 C 80 18, 64 30, 40 62", leaves: branchLeaves(3, [104, -4], [40, 62], -6) },
+  { d: "M 104 20 C 86 44, 70 60, 58 96", leaves: branchLeaves(41, [104, 20], [58, 96], 5) },
+  { d: "M 104 58 C 90 84, 80 104, 66 130", leaves: branchLeaves(113, [104, 58], [66, 130], -6) },
+  { d: "M 90 -6 C 76 6, 62 10, 48 12", leaves: branchLeaves(77, [90, -6], [48, 12], -3) },
+  { d: "M 70 -6 C 56 10, 38 22, 20 40", leaves: branchLeaves(151, [70, -6], [20, 40], 6) },
+  { d: "M 104 92 C 96 112, 90 130, 78 152", leaves: branchLeaves(197, [104, 92], [78, 152], 4) },
+];
+
+const BOUGH_A = BRANCHES.slice(0, 3);
+const BOUGH_B = BRANCHES.slice(3);
+
+/* canvas px per viewBox unit for the painted leaf shadows */
+const BOUGH_RES = 4;
+
+/** one swaying bough of leaf-shadow, painted (blur and all) into a canvas
+ *  once. A canvas is just a texture to the compositor, so the endless sway
+ *  costs nothing — a blurred SVG got re-rasterized by Firefox every frame. */
+function Bough({ branches, className }: { branches: typeof BRANCHES; className: string }) {
+  const ref = useRef<HTMLCanvasElement>(null);
+  useEffect(() => {
+    const ctx = ref.current?.getContext("2d");
+    if (!ctx) return;
+    ctx.scale(BOUGH_RES, BOUGH_RES);
+    ctx.filter = `blur(${0.75 * BOUGH_RES}px)`;
+    ctx.fillStyle = "rgb(96 64 34 / 0.36)";
+    ctx.strokeStyle = "rgb(96 64 34 / 0.34)";
+    ctx.lineWidth = 0.7;
+    for (const b of branches) {
+      ctx.stroke(new Path2D(b.d));
+      for (const leaf of b.leaves) {
+        ctx.beginPath();
+        ctx.ellipse(
+          leaf.x,
+          leaf.y,
+          3.4 * leaf.size,
+          1.4 * leaf.size,
+          (leaf.angle * Math.PI) / 180,
+          0,
+          Math.PI * 2,
+        );
+        ctx.fill();
+      }
+    }
+  }, [branches]);
   return (
-    <div className="pointer-events-none absolute inset-0 z-1 overflow-hidden" aria-hidden="true">
-      <div
-        className="animate-beam absolute inset-y-[-10%] left-[-20%] w-[150%] will-change-transform"
-        style={{
-          background:
-            "linear-gradient(112deg, transparent 30%, rgb(255 232 190 / 0.34) 38%, rgb(255 232 190 / 0.1) 45%, transparent 52%, transparent 61%, rgb(255 232 190 / 0.22) 67%, transparent 74%)",
-        }}
+    <div className={`absolute inset-0 origin-top-right ${className}`}>
+      <canvas
+        ref={ref}
+        width={100 * BOUGH_RES}
+        height={150 * BOUGH_RES}
+        className="size-full object-cover"
       />
     </div>
+  );
+}
+
+/** Komorebi — afternoon sun through the studio window: six soft panes of
+ *  light thrown across the wall, a plant's shadow swaying inside them. It
+ *  drifts on its own; the cursor only nudges it (parallax) and stirs the
+ *  leaves like a breeze. Static rasters + compositor animations only. */
+function WindowLight({
+  lit,
+  shiftX,
+  shiftY,
+  gust,
+  sink,
+}: {
+  lit: boolean;
+  shiftX: MotionValue<number>;
+  shiftY: MotionValue<number>;
+  gust: MotionValue<number>;
+  sink: MotionValue<string>;
+}) {
+  const reduce = useReducedMotion();
+  const sway = useTransform(gust, (g) => g * 3.2);
+  const swayX = useTransform(gust, (g) => g * -10);
+  return (
+    <motion.div
+      className="pointer-events-none absolute inset-0 z-1 overflow-hidden"
+      style={{ x: shiftX, y: shiftY }}
+      aria-hidden="true"
+    >
+      {/* the sun comes out from behind a cloud */}
+      <motion.div
+        className="absolute inset-0"
+        initial={reduce ? false : { opacity: 0, transform: "translateX(-5%)" }}
+        animate={lit ? { opacity: 1, transform: "translateX(0%)" } : undefined}
+        transition={{ duration: 2.6, ease: EASE }}
+      >
+        <motion.div className="absolute inset-0" style={{ y: sink }}>
+          <div
+            className={`absolute top-[-16%] right-[-20%] h-[132%] w-[76vw] ${reduce ? "" : "animate-light-drift"}`}
+          >
+            <div className="size-full [transform:skewX(-14deg)_rotate(7deg)]">
+              {/* the panes of light, the window bars left in shade between them */}
+              <div className="grid size-full grid-cols-2 grid-rows-3 gap-[2.2vw] p-[2vw]">
+                {Array.from({ length: 6 }, (_, i) => (
+                  <div
+                    key={i}
+                    className="rounded-[10px] bg-[linear-gradient(205deg,rgb(255_247_228/0.95),rgb(255_232_190/0.7)_55%,rgb(255_220_170/0.25))] blur-[12px]"
+                  />
+                ))}
+              </div>
+              <motion.div
+                className="absolute inset-0 origin-top-right"
+                style={reduce ? undefined : { rotate: sway, x: swayX }}
+              >
+                <Bough branches={BOUGH_A} className={reduce ? "" : "animate-bough-a"} />
+                <Bough branches={BOUGH_B} className={reduce ? "" : "animate-bough-b"} />
+              </motion.div>
+            </div>
+          </div>
+        </motion.div>
+      </motion.div>
+    </motion.div>
   );
 }
 
@@ -296,11 +454,24 @@ export function Hero() {
   const mouseX = useMotionValue(-9999);
   const mouseY = useMotionValue(-9999);
 
+  /* the window light barely leans with the cursor — depth, not chase */
+  const shiftX = useSpring(0, { stiffness: 30, damping: 18 });
+  const shiftY = useSpring(0, { stiffness: 30, damping: 18 });
+  /* a quick hand is a breeze through the plant outside: an under-damped
+     spring, so the leaves overshoot and rustle back to rest */
+  const gustTarget = useMotionValue(0);
+  const gust = useSpring(gustTarget, { stiffness: 45, damping: 6 });
+  const lastMove = useRef({ x: 0, y: 0, t: 0 });
+  const calm = useRef(0);
+  useEffect(() => () => clearTimeout(calm.current), []);
+  /* as the hero leaves, the light slides down the wall — the sun is setting */
+  const sink = useTransform(scrollYProgress, [0, 1], ["0vh", "28vh"]);
+
   const scale = useTransform(scrollYProgress, [0, 1], [1, 1.12]);
   const contentY = useTransform(scrollYProgress, [0, 1], [0, 130]);
   const opacity = useTransform(scrollYProgress, [0, 0.72], [1, 0]);
-  const blobA = useTransform(scrollYProgress, [0, 1], [0, -120]);
-  const blobB = useTransform(scrollYProgress, [0, 1], [0, 90]);
+  const glowA = useTransform(scrollYProgress, [0, 1], [0, -120]);
+  const glowB = useTransform(scrollYProgress, [0, 1], [0, 90]);
   /* annotation ink dissolves before the type does */
   const inkFade = useTransform(scrollYProgress, [0, 0.35], [1, 0]);
 
@@ -308,10 +479,22 @@ export function Hero() {
     if (reduce) return;
     mouseX.set(e.clientX);
     mouseY.set(e.clientY);
+    shiftX.set((e.clientX / window.innerWidth - 0.5) * -18);
+    shiftY.set((e.clientY / window.innerHeight - 0.5) * -12);
+    const last = lastMove.current;
+    const now = performance.now();
+    const speed = Math.hypot(e.clientX - last.x, e.clientY - last.y) / Math.max(8, now - last.t);
+    lastMove.current = { x: e.clientX, y: e.clientY, t: now };
+    gustTarget.set(Math.min(1, speed / 2.2));
+    clearTimeout(calm.current);
+    calm.current = window.setTimeout(() => gustTarget.set(0), 90);
   };
   const handleLeave = () => {
     mouseX.set(-9999);
     mouseY.set(-9999);
+    shiftX.set(0);
+    shiftY.set(0);
+    gustTarget.set(0);
   };
 
   const shared: SharedMotion = { scrollProgress: scrollYProgress, mouseX, mouseY };
@@ -324,29 +507,22 @@ export function Hero() {
       onPointerMove={handleMove}
       onPointerLeave={handleLeave}
     >
-      <div className="absolute inset-0 z-0">
-        <Blob
-          position="top-[-8vw] right-[-6vw] size-[46vw]"
-          gradient="bg-[radial-gradient(circle_at_30%_30%,var(--color-terracotta),transparent_70%)]"
-          restOpacity={0.55}
-          hoverOpacity={0.85}
-          parallaxY={blobA}
+      {/* the room: warm colour pooled in the corners, and a touch of shade on
+          the wall so the window light has something to be brighter than */}
+      <div className="absolute inset-0 z-0" aria-hidden="true">
+        <motion.div
+          className="absolute top-[-14vw] right-[-12vw] size-[52vw] rounded-full bg-[radial-gradient(closest-side,rgb(224_97_58/0.38),transparent)]"
+          style={{ y: glowA }}
         />
-        <Blob
-          position="bottom-[-10vw] left-[-8vw] size-[38vw]"
-          gradient="bg-[radial-gradient(circle_at_60%_40%,var(--color-green),transparent_70%)]"
-          restOpacity={0.4}
-          hoverOpacity={0.68}
-          parallaxY={blobB}
+        <motion.div
+          className="absolute bottom-[-14vw] left-[-12vw] size-[44vw] rounded-full bg-[radial-gradient(closest-side,rgb(47_93_80/0.3),transparent)]"
+          style={{ y: glowB }}
         />
+        <div className="absolute inset-0 bg-[rgb(110_80_50/0.07)]" />
       </div>
 
-      {!reduce && (
-        <>
-          <WindowLight />
-          <Motes variant="dust" count={14} />
-        </>
-      )}
+      <WindowLight lit={play} shiftX={shiftX} shiftY={shiftY} gust={gust} sink={sink} />
+      {!reduce && <Motes variant="dust" count={14} />}
 
       <OrbitBadge fade={inkFade} play={play} />
 
@@ -364,7 +540,7 @@ export function Hero() {
           Independent design &amp; motion studio — est. 2018
         </motion.span>
 
-        <h1 className="font-display text-hero">
+        <h1 className="font-display text-hero" data-lit={play || undefined}>
           <span className="block">
             {Array.from("NEBULA").map((char, i) => (
               <HeroChar

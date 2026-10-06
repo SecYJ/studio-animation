@@ -7,13 +7,13 @@ import {
   useMotionValue,
   useMotionValueEvent,
   useReducedMotion,
-  useScroll,
   useSpring,
   useTransform,
   type MotionValue,
 } from "motion/react";
 import confetti from "canvas-confetti";
 import { useMediaQuery } from "../lib/useMediaQuery";
+import { usePinnedScroll } from "../lib/usePinnedScroll";
 
 const EASE = [0.22, 1, 0.36, 1] as const;
 
@@ -457,10 +457,7 @@ function ProcessPinned() {
   const ref = useRef<HTMLElement>(null);
   const [active, setActive] = useState(0);
   const { canvas, fire } = useConfettiCannon();
-  const { scrollYProgress } = useScroll({
-    target: ref,
-    offset: ["start start", "end end"],
-  });
+  const scrollYProgress = usePinnedScroll(ref);
 
   const drawnRaw = useTransform(scrollYProgress, [DRAW_START, DRAW_END], [0, 1]);
   /* the spring gives the spark real momentum — it chases the scroll and settles */

@@ -4,13 +4,13 @@ import {
   useMotionTemplate,
   useMotionValueEvent,
   useReducedMotion,
-  useScroll,
   useTransform,
   type MotionValue,
 } from "motion/react";
 import { EmberText } from "../components/EmberText";
 import { Motes } from "../components/Motes";
 import { useMediaQuery } from "../lib/useMediaQuery";
+import { usePinnedScroll } from "../lib/usePinnedScroll";
 
 const EASE = [0.22, 1, 0.36, 1] as const;
 
@@ -184,10 +184,7 @@ function NightScene({
 function CTAPortal() {
   const ref = useRef<HTMLElement>(null);
   const [entered, setEntered] = useState(false);
-  const { scrollYProgress } = useScroll({
-    target: ref,
-    offset: ["start start", "end end"],
-  });
+  const scrollYProgress = usePinnedScroll(ref);
 
   /* portal radius in % of the viewport diagonal; 78% clears the corners */
   const r = useTransform(scrollYProgress, [0.02, COVERED_AT + 0.02], [4.2, 78]);

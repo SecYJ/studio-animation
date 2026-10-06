@@ -180,6 +180,79 @@
   animation: beam-pan 30s ease-in-out infinite alternate;
 }
 
+/* hero komorebi: the window light wanders a little over the afternoon,
+   and two boughs of leaf-shadow sway out of step with each other */
+@keyframes light-drift {
+  from {
+    translate: -1.5% 0;
+    rotate: -0.6deg;
+  }
+  to {
+    translate: 1.5% 1.5%;
+    rotate: 0.8deg;
+  }
+}
+
+.animate-light-drift {
+  animation: light-drift 22s ease-in-out infinite alternate;
+}
+
+@keyframes bough-sway {
+  from {
+    rotate: -1.6deg;
+    translate: 0 0;
+  }
+  to {
+    rotate: 1.8deg;
+    translate: -0.6% 0.4%;
+  }
+}
+
+.animate-bough-a {
+  animation: bough-sway 6.5s ease-in-out infinite alternate;
+}
+
+.animate-bough-b {
+  animation: bough-sway 9s ease-in-out -3s infinite alternate-reverse;
+}
+
+/* hero letter shadows: parallel light from the window (top-right), so all
+   shadows share one offset; they fade in when the sun comes out */
+.hero-shadow {
+  opacity: 0;
+  transition: opacity 1.8s ease 0.6s;
+}
+
+[data-lit] .hero-shadow {
+  opacity: 1;
+}
+
+@keyframes shadow-drift-far {
+  from {
+    translate: -24px 18px;
+  }
+  to {
+    translate: -32px 13px;
+  }
+}
+
+@keyframes shadow-drift-near {
+  from {
+    translate: -6px 5px;
+  }
+  to {
+    translate: -8px 4px;
+  }
+}
+
+.hero-shadow-far {
+  animation: shadow-drift-far 22s ease-in-out infinite alternate;
+}
+
+.hero-shadow-near {
+  animation: shadow-drift-near 22s ease-in-out infinite alternate;
+}
+
 /* floating particle — dust in daylight, ember at night */
 @keyframes mote-drift {
   0%,
@@ -265,6 +338,11 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .animate-light-drift,
+  .animate-bough-a,
+  .animate-bough-b,
+  .hero-shadow-far,
+  .hero-shadow-near,
   .animate-beam,
   .mote,
   .nib-halo,

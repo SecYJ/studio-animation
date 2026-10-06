@@ -9,8 +9,10 @@ export function Daylight() {
   const progress = useSpring(scrollYProgress, { stiffness: 90, damping: 30, restDelta: 0.001 });
 
   const sunY = useTransform(progress, [0, 0.8], ["0vh", "55vh"]);
-  const sunOpacity = useTransform(progress, [0, 0.5, 0.78], [0.9, 0.55, 0]);
-  const duskOpacity = useTransform(progress, [0.6, 0.94], [0, 0.4]);
+  /* the sun is down before the lamp-lit Stats scene (≈63–83% of the page);
+     dusk only settles once the CTA's daylight side is on screen */
+  const sunOpacity = useTransform(progress, [0, 0.5, 0.62], [0.9, 0.55, 0]);
+  const duskOpacity = useTransform(progress, [0.84, 0.97], [0, 0.4]);
 
   if (reduce) return null;
 
